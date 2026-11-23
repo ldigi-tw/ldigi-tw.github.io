@@ -5,7 +5,7 @@
   13940 警政署 國道公路固定式測速照相地點
 只輸出有座標、位於台澎金馬範圍內的點；同位置（約 15 公尺內）且同方向的重複點合併。
 """
-import csv, io, json, math, re, sys, time, urllib.request, hashlib, datetime
+import csv, io, json, math, os, re, sys, time, urllib.parse, urllib.request, hashlib, datetime, zipfile
 
 UA = {"User-Agent": "Mozilla/5.0 (ldigi speedcam builder)"}
 DATASETS = [7320, 13940]
@@ -13,6 +13,7 @@ DATASETS = [7320, 13940]
 def get(url, tries=3):
     for i in range(tries):
         try:
+            url = urllib.parse.quote(url, safe=":/?&=%#+~,;@!$'()*[]")
             req = urllib.request.Request(url, headers=UA)
             with urllib.request.urlopen(req, timeout=60) as r:
                 return r.read()
@@ -42,6 +43,12 @@ def rows_of(ds):
     for fmt, url in sorted(resources(ds), key=lambda x: 0 if "CSV" in x[0] else 1):
         try:
             b = get(url)
+            if b[:2] == b"PK":
+                z = zipfile.ZipFile(io.BytesIO(b))
+                names = [n for n in z.namelist() if n.lower().endswith((".csv", ".json"))]
+                print("zip", z.namelist(), file=sys.stderr)
+                if not names: continue
+                b = z.read(names[0])
             t = decode(b).strip()
             if t.startswith("[") or t.startswith("{"):
                 j = json.loads(t)
@@ -92,6 +99,7 @@ pts = []
 for ds in DATASETS:
     rows = rows_of(ds)
     print(ds, "rows", len(rows), file=sys.stderr)
+    if rows: print(ds, "sample", rows[0], file=sys.stderr)
     for r in rows:
         lat = fnum(pick(r, "Latitude", "緯度"))
         lon = fnum(pick(r, "Longitude", "經度"))
@@ -119,7 +127,8 @@ if len(out) < 500:
     print("too few points, keep old file:", len(out), file=sys.stderr); sys.exit(1)
 
 body = json.dumps(out, ensure_ascii=False, separators=(",", ":"))
-ver = datetime.datetime.utcnow().strftime("%Y%m%d")
+ver = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
+os.makedirs("data", exist_ok=True)
 doc = {"v": ver, "n": len(out), "sha": hashlib.sha1(body.encode()).hexdigest()[:12],
        "src": "政府資料開放平臺 7320、13940（政府資料開放授權條款-第1版）", "p": out}
 open("data/speedcam_tw.json", "w", encoding="utf-8").write(json.dumps(doc, ensure_ascii=False, separators=(",", ":")))
