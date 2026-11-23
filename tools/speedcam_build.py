@@ -7,14 +7,16 @@
 """
 import csv, io, json, math, os, re, sys, time, urllib.parse, urllib.request, hashlib, datetime, zipfile
 
-UA = {"User-Agent": "Mozilla/5.0 (ldigi speedcam builder)"}
+UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36", "Accept": "*/*", "Accept-Language": "zh-TW,zh;q=0.9"}
 DATASETS = [7320, 13940]
 
 def get(url, tries=3):
     for i in range(tries):
         try:
             url = urllib.parse.quote(url, safe=":/?&=%#+~,;@!$'()*[]")
-            req = urllib.request.Request(url, headers=UA)
+            h = dict(UA)
+            if "tgos.tw" in url: h["Referer"] = "https://www.tgos.tw/tgos/Web/Metadata/TGOS_Query_Metadata.aspx"
+            req = urllib.request.Request(url, headers=h)
             with urllib.request.urlopen(req, timeout=60) as r:
                 return r.read()
         except Exception as e:
